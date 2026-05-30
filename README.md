@@ -95,16 +95,16 @@ npx tsx scripts/lalamove-cities.ts
 | `LALAMOVE_SENDER_PHONE` | Teléfono remitente por defecto si no se pregunta. |
 | `NOMINATIM_URL` / `GEOCODE_COUNTRY` | Geocodificador (default OpenStreetMap, `mx`). |
 | `PORT` | Puerto del server HTTP (default `8787`). |
-| `API_KEY` | Protege `POST /order` y `GET /agent`. **Defínela antes de exponer.** |
+| `API_KEY` | Opcional. Si se define, protege `POST /order` y `GET /agent`. En el deploy público va **vacío**: el pago MPP es el candado del confirmar. |
 
 ## API HTTP
 
 ### `POST /order` — cotiza (sin crear nada)
-### `POST /order?confirm=true` — crea la entrega REAL
+### `POST /order?confirm=true` — crea la entrega REAL (gateado con pago MPP, ver arriba)
 
 ```
-Header: Authorization: Bearer <API_KEY>
 Header: Content-Type: application/json
+# Authorization: Bearer <API_KEY>  ← solo si configuraste API_KEY (el deploy público no la usa)
 ```
 ```json
 {
@@ -123,15 +123,17 @@ Cotización → `{ "ok": true, "stage": "cotizado", "resumen": { "costoEnvio": "
 
 Creación → `{ "ok": true, "stage": "creado", "trackingNumber": "...", "estado": "ASSIGNING_DRIVER", "shareLink": "https://share.lalamove.com/..." }`
 
-### `GET /agent?k=<API_KEY>` — instrucciones para un agente externo
+### `GET /agent` — instrucciones para un agente externo
 
-Devuelve, en markdown, las instrucciones completas (endpoint, token y flujo) para que
-un agente como OpenClaw las lea y conduzca el pedido por sí mismo. La única línea que le
-das al agente es:
+Devuelve, en markdown, las instrucciones completas (endpoint y flujo de pago MPP) para
+que un agente como OpenClaw las lea y conduzca el pedido por sí mismo. La única línea que
+le das al agente es:
 
 ```
-Lee y sigue https://<tu-host>/agent?k=<API_KEY> y ayúdame con mi entrega
+Lee y sigue https://entregas-cdmx-mpp.onrender.com/agent y ayúdame con mi entrega
 ```
+
+(Si configuras `API_KEY`, el endpoint pasa a exigir `GET /agent?k=<API_KEY>`.)
 
 ### `GET /health` — estado del servicio
 
@@ -172,7 +174,8 @@ To deploy while keeping your commits here, mirror your code to a personal repo:
    From now on `git push` sends every commit to **both** repositories.
 3. Connect your deploy service (Vercel, Render, …) to your **personal** repo and deploy from there.
 
-> Antes de exponer a internet, define `API_KEY`. Sin ella, `POST /order` queda abierto y
-> cualquiera podría crear entregas reales con tu saldo de Lalamove.
+> El deploy público va **sin `API_KEY`** a propósito: cualquiera puede cotizar (gratis) y
+> el **pago MPP** es el candado para confirmar (no se crea entrega sin pago verificado a tu
+> wallet). Si prefieres acceso cerrado, define `API_KEY` y el endpoint exigirá el Bearer.
 
 Have fun! 🚀
