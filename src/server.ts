@@ -2,7 +2,17 @@ import { loadEnv } from "./env";
 loadEnv();
 
 import http from "http";
+import { NodeListener } from "mppx/server";
 import { processOrder } from "./flow";
+import { createMppx, chargeOptions } from "./payment";
+
+// Gate de pago MPP (transporte HTTP por defecto). Se crea una vez, perezoso:
+// si MPP no está configurado, solo falla al intentar COBRAR (confirmar), no al cotizar.
+let _mppx: ReturnType<typeof createMppx> | null = null;
+function paymentGate() {
+  if (!_mppx) _mppx = createMppx();
+  return _mppx;
+}
 
 const PORT = Number(process.env.PORT || 8787);
 // Si API_KEY está definida, /order exige Authorization: Bearer <API_KEY>.
@@ -42,6 +52,16 @@ Lalamove a través de un endpoint HTTP. Hablas español, breve y claro.
 4. SOLO cuando el usuario escriba "confirmar", repite con POST /order?confirm=true y
    el mismo JSON. Devuelve el número de orden y el shareLink. Nunca confirmes sin un
    "confirmar" explícito.
+
+## Pago (MPP / stablecoin) — solo al confirmar
+La confirmación está gateada con el Machine Payments Protocol (HTTP 402):
+- POST /order?confirm=true responde **402** con un header WWW-Authenticate que es un
+  Challenge MPP: cuánto pagar (en stablecoin de Tempo) y a qué wallet.
+- Paga el Challenge en Tempo (con un cliente mppx o un wallet de agente) y reintenta
+  la MISMA request con el Credential en el header Authorization.
+- El server verifica el pago on-chain, crea la entrega y devuelve el Receipt en el
+  header Payment-Receipt + el JSON con trackingNumber/shareLink.
+Si usas el SDK mppx (fetch que paga solo) o el MCP server, este paso es automático.
 
 ## Body JSON
 {
@@ -115,9 +135,46 @@ const server = http.createServer(async (req, res) => {
   const orderInput = "order" in body ? body.order : body;
 
   try {
-    const result = await processOrder(orderInput, confirm);
-    const { status, ...rest } = result;
-    return send(res, status, rest);
+    // ── Cotizar (gratis, sin pago) ──
+    if (!confirm) {
+      const quote = await processOrder(orderInput, false);
+      const { status, ...rest } = quote;
+      return send(res, status, rest);
+    }
+
+    // ── Confirmar: gate de pago MPP ANTES de crear la entrega real ──
+    // 1. Re-cotiza en el server para fijar el precio (el cliente no puede pagar de menos).
+    const quote = await processOrder(orderInput, false);
+    if (!quote.ok || typeof quote.priceMXN !== "number") {
+      const { status, ...rest } = quote;
+      return send(res, status, rest);
+    }
+    const priceMXN = quote.priceMXN;
+
+    // 2. Aplica el cobro en stablecoin. mppx lee el Credential del header Authorization.
+    const fetchReq = new Request(`http://${req.headers.host || "localhost"}${req.url}`, {
+      method: "POST",
+      headers: req.headers as Record<string, string>,
+      body: raw || undefined,
+    });
+    const dropoff = (orderInput as Record<string, unknown>)?.dropoffAddress ?? "";
+    const result = await paymentGate().charge(
+      chargeOptions(priceMXN, `Entrega Lalamove → ${dropoff}`),
+    )(fetchReq);
+
+    // 3. Sin pago válido → 402 con el Challenge (WWW-Authenticate). No se crea NADA.
+    if (result.status === 402) {
+      return void (await NodeListener.sendResponse(res, result.challenge));
+    }
+
+    // 4. Pago verificado on-chain → AHORA sí se crea la entrega real en Lalamove.
+    const created = await processOrder(orderInput, true);
+    const { status, ...rest } = created;
+    const okResp = new Response(JSON.stringify(rest, null, 2), {
+      status,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+    return void (await NodeListener.sendResponse(res, result.withReceipt(okResp)));
   } catch (e) {
     return send(res, 500, { ok: false, error: e instanceof Error ? e.message : String(e) });
   }

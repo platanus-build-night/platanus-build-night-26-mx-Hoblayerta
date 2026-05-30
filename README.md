@@ -8,13 +8,40 @@ Hacker:
 
 - José Román Andrade Pérez ([@Hoblayerta](https://github.com/Hoblayerta))
 
-> Mandas **una sola línea de texto** y un agente reúne lo que falta, cotiza con
-> **Lalamove** y crea una **entrega real** en la Ciudad de México (moto/auto same-day),
-> devolviendo el número de orden y el enlace de seguimiento.
+> Cualquier **agente** pide una entrega en CDMX y **paga en stablecoin (Tempo) vía MPP**;
+> el pago verificado on-chain dispara la **entrega real** con Lalamove (moto/auto same-day),
+> devolviendo el Receipt (tx hash) + el tracking.
 
-Pensado para que un agente externo (OpenClaw, Cursor, Claude) lo consuma: le das **una
-sola línea con un URL** y el agente lee de ahí cómo conducir todo el pedido — sin pegar
-prompts.
+Pensado para que un agente externo (OpenClaw, Cursor, Claude) lo consuma de forma
+autónoma: cotiza gratis y, al confirmar, paga el equivalente en stablecoin a la wallet
+del proveedor. El **pago MPP es el candado** — no hace falta API key.
+
+## 🟢 En vivo
+
+```
+https://entregas-cdmx-mpp.onrender.com
+```
+
+## 💸 Pago con MPP (Machine Payments Protocol)
+
+La confirmación está gateada con **HTTP 402** sobre **Tempo mainnet**:
+
+```
+Agente → POST /order                 → costo en MXN (gratis)
+Agente → POST /order?confirm=true     → 402 + WWW-Authenticate: Payment (cuánto / a qué wallet)
+Agente → paga en stablecoin (Tempo) a la wallet del proveedor
+Agente → reintenta con el Credential  → server verifica on-chain → entrega Lalamove + Receipt
+```
+
+- El precio se **recalcula en el server** al confirmar (anti-manipulación).
+- **Nunca** se crea la entrega Lalamove sin pago verificado.
+- Doc detallada del endpoint: [claudedocs/mpp-endpoint.md](claudedocs/mpp-endpoint.md).
+
+### Consumir desde un agente
+- **MCP server** (local): `npm run serve:mcp` → tools `cotizar_entrega` (gratis) y
+  `confirmar_entrega` (cobra). El pago MPP es automático.
+- **HTTP + cliente MPP**: SDK `mppx` o `npx mppx` contra `…/order?confirm=true`.
+- **Leer instrucciones**: dale al agente el URL `GET /agent`.
 
 ## Cómo funciona
 

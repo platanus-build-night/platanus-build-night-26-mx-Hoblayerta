@@ -64,6 +64,7 @@ export async function processOrder(input: unknown, confirm: boolean): Promise<Fl
       stage: "cotizado",
       status: 200,
       resumen,
+      priceMXN: rate.quote.price,
       siguiente: 'Muestra el resumen al usuario. Cuando diga "confirmar", repite la llamada con confirm.',
     };
   }
