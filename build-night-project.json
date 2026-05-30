@@ -1,5 +1,5 @@
 {
-  "project-name": "<FILL THIS>",
-  "project-oneliner": "<FILL THIS>",
-  "project-description": "<FILL THIS>"
+  "project-name": "Entregas CDMX con Lalamove",
+  "project-oneliner": "Mandas una línea de texto y un agente crea una entrega real con Lalamove en CDMX.",
+  "project-description": "Agente conversacional en TypeScript que, a partir de una sola línea de texto, reúne los datos faltantes uno a uno en español, cotiza con la API de Lalamove (mensajería same-day en moto/auto), espera un 'confirmar' explícito y crea una entrega real, devolviendo el número de orden y el enlace de seguimiento. Expone un endpoint HTTP y un endpoint /agent con instrucciones autoejecutables, pensado para que un agente externo (OpenClaw, Cursor, Claude) lo consuma con una sola línea + URL, sin pegar prompts. Incluye firma HMAC-SHA256 en cada request, geocodificación de direcciones a lat/lng, candado determinista de confirmación y validación de datos."
 }

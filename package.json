@@ -1,0 +1,19 @@
+{
+  "name": "delivery-agent-cdmx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agente conversacional de entregas para CDMX con Envia.com y cobro contra entrega (COD)",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "order": "tsx src/order.ts",
+    "serve": "tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.3"
+  }
+}
